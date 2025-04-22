@@ -42,6 +42,19 @@ proc_mapstacks(pagetable_t kpgtbl) {
   }
 }
 
+int free_proc(){
+  struct proc *p;
+  int n = 0;
+  for (p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if (p->state != UNUSED) {
+        n++;
+    } 
+    release(&p->lock);
+  }
+  return n;
+}
+
 // initialize the proc table at boot time.
 void
 procinit(void)
@@ -294,7 +307,7 @@ fork(void)
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
-
+  np->mask = p->mask;  //copy mask
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
     if(p->ofile[i])

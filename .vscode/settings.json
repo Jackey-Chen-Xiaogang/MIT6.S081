@@ -1,0 +1,13 @@
+{
+    "workbench.tree.indent": 8,
+    "editor.fontSize": 30,
+    "screencastMode.fontSize": 50,
+    "screencastMode.mouseIndicatorSize": 30,
+    "debug.console.fontSize": 30,
+    "scm.inputFontSize": 30,
+    "terminal.integrated.fontSize": 15,
+    "files.associations": {
+        "stat.h": "c",
+        "user.h": "c"
+    }
+}
