@@ -75,15 +75,49 @@ sys_sleep(void)
   return 0;
 }
 
+extern pte_t *walk(pagetable_t pagetable, uint64 va, int alloc);
 
-#ifdef LAB_PGTBL
 int
 sys_pgaccess(void)
 {
-  // lab pgtbl: your code here.
+  int n;
+  uint64 stadd;
+  uint64 usadd;
+  if (argaddr(0, &stadd) < 0){
+    printf ("Stadd invalid\n");
+    return -1;
+  }
+  if (argint(1, &n) < 0){
+    printf ("N invalid\n");
+    return -1;
+  }
+  if (n >= 100){
+    return -1;
+  }
+  uint64 bitmask = 0;
+  if (argaddr(2, &usadd) < 0){
+    printf ("Usadd Invalid\n");
+    return -1;
+  }
+  uint64 idex = stadd;
+  for (int i = 0; i < n; i++){
+    pte_t *padd = walk(myproc()->pagetable, idex,0);
+    if (padd == 0){
+      printf("Work return null\n");
+      return -1;
+    }
+    if (*padd & PTE_A && i != 0){
+      bitmask = (bitmask | (1L << i));
+    }
+    idex += PGSIZE;
+  }
+  vmprint(myproc()->pagetable, 0);
+  if (copyout(myproc()->pagetable, usadd, (char*)&bitmask, sizeof (bitmask)) < 0){
+    printf("Copyout failed\n");
+    return -1;
+  }
   return 0;
 }
-#endif
 
 uint64
 sys_kill(void)
