@@ -1,47 +1,7 @@
-xv6 is a re-implementation of Dennis Ritchie's and Ken Thompson's Unix
-Version 6 (v6).  xv6 loosely follows the structure and style of v6,
-but is implemented for a modern RISC-V multiprocessor using ANSI C.
+lab report
 
-ACKNOWLEDGMENTS
-
-xv6 is inspired by John Lions's Commentary on UNIX 6th Edition (Peer
-to Peer Communications; ISBN: 1-57398-013-7; 1st edition (June 14,
-2000)). See also https://pdos.csail.mit.edu/6.828/, which
-provides pointers to on-line resources for v6.
-
-The following people have made contributions: Russ Cox (context switching,
-locking), Cliff Frey (MP), Xiao Yu (MP), Nickolai Zeldovich, and Austin
-Clements.
-
-We are also grateful for the bug reports and patches contributed by
-Takahiro Aoyagi, Silas Boyd-Wickizer, Anton Burtsev, Ian Chen, Dan
-Cross, Cody Cutler, Mike CAT, Tej Chajed, Asami Doi, eyalz800, Nelson
-Elhage, Saar Ettinger, Alice Ferrazzi, Nathaniel Filardo, flespark,
-Peter Froehlich, Yakir Goaron,Shivam Handa, Matt Harvey, Bryan Henry,
-jaichenhengjie, Jim Huang, Matúš Jókay, Alexander Kapshuk, Anders
-Kaseorg, kehao95, Wolfgang Keller, Jungwoo Kim, Jonathan Kimmitt,
-Eddie Kohler, Vadim Kolontsov , Austin Liew, l0stman, Pavan
-Maddamsetti, Imbar Marinescu, Yandong Mao, , Matan Shabtay, Hitoshi
-Mitake, Carmi Merimovich, Mark Morrissey, mtasm, Joel Nider,
-OptimisticSide, Greg Price, Jude Rich, Ayan Shafqat, Eldar Sehayek,
-Yongming Shen, Fumiya Shigemitsu, Cam Tenny, tyfkda, Warren Toomey,
-Stephen Tu, Rafael Ubal, Amane Uehara, Pablo Ventura, Xi Wang, Keiichi
-Watanabe, Nicolas Wolovick, wxdao, Grant Wu, Jindong Zhang, Icenowy
-Zheng, ZhUyU1997, and Zou Chang Wei.
-
-The code in the files that constitute xv6 is
-Copyright 2006-2020 Frans Kaashoek, Robert Morris, and Russ Cox.
-
-ERROR REPORTS
-
-Please send errors and suggestions to Frans Kaashoek and Robert Morris
-(kaashoek,rtm@mit.edu). The main purpose of xv6 is as a teaching
-operating system for MIT's 6.S081, so we are more interested in
-simplifications and clarifications than new features.
-
-BUILDING AND RUNNING XV6
-
-You will need a RISC-V "newlib" tool chain from
-https://github.com/riscv/riscv-gnu-toolchain, and qemu compiled for
-riscv64-softmmu. Once they are installed, and in your shell
-search path, you can run "make qemu".
+1.看不懂汇编，跑路
+2.要把调用函数的返回地址打印出来，先用两个宏把当前栈页表的上下限找到（其实只用找最低就行，栈里面的地址从大到小递减），然后先偏移8格找到储存返回地址的地址，然后解指针（不是直接返回，我就说怎么可能返回地址之间的距离是固定的，每个函数占用大小都不一样）， 然后更新一下帧指针继续找，一直到找到页表底部。
+3.alarm
+  (1)invoke handler:进程里面开三个位置，一个存过去的时间，一个存要走的时间，一个存传入的需要执行的函数的地址，当调用sigalarm函数的时候，把该地址赋值给程序计数器，然后中断结束之后就可以执行该函数
+  (2)在进程里面开一个寄存器的备份（记得初始化记得释放），在开一个是否在处理alarm的标志位（如果不开，而且时间片很短就会在上一次还没处理完下一次就开始处理，会复写进程的内存），最后在sigreturn里面恢复现场（p->trampline是指针，要解引用，服了）
