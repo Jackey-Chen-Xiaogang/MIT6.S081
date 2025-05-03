@@ -7,6 +7,7 @@
 
 #define NBUCKET 5
 #define NKEYS 100000
+pthread_mutex_t bucket_lock[NBUCKET];
 
 struct entry {
   int key;
@@ -16,7 +17,6 @@ struct entry {
 struct entry *table[NBUCKET];
 int keys[NKEYS];
 int nthread = 1;
-
 
 double
 now()
@@ -52,9 +52,10 @@ void put(int key, int value)
     e->value = value;
   } else {
     // the new is new.
+    pthread_mutex_lock(&bucket_lock[i]);
     insert(key, value, &table[i], table[i]);
+    pthread_mutex_unlock(&bucket_lock[i]);
   }
-
 }
 
 static struct entry*
@@ -101,6 +102,9 @@ get_thread(void *xa)
 int
 main(int argc, char *argv[])
 {
+  for(int i=0; i < NBUCKET; i++){
+    pthread_mutex_init(&bucket_lock[i],NULL);
+  }
   pthread_t *tha;
   void *value;
   double t1, t0;
