@@ -21,14 +21,55 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
-} kmem;
+  char lockname[8]; // 锁的名称
+} kmem[NCPU];
+
+
+// 编号id的cpu向后面的cpu偷窃内存
+void
+steal(int id){
+  struct run *fast, *slow;
+  int i, sid;
+
+  for (i = 1; i < NCPU; i++){
+    sid = (id + i) % NCPU; // 向后轮询
+    acquire(&kmem[sid].lock);
+    if(kmem[sid].freelist){
+      slow = fast = kmem[sid].freelist;
+
+      // 快慢双指针，找到一半的位置
+      while(fast && fast->next){
+        slow = slow->next;
+        fast = fast->next->next;
+      }
+      // kmem[id]将kmem[sid]链表的前一半偷走
+      kmem[id].freelist = kmem[sid].freelist;
+      kmem[sid].freelist = slow->next;
+      slow->next = 0;
+
+      release(&kmem[sid].lock);
+      break;
+    }
+    release(&kmem[sid].lock);
+  }
+}
+
 
 void
 kinit()
 {
-  initlock(&kmem.lock, "kmem");
-  freerange(end, (void*)PHYSTOP);
+  int i;
+  for (i = 0; i < NCPU; i++){
+    // 将格式化的数据写入lock-name，并指定最大长度为sizeof(lockname)
+    snprintf(kmem[i].lockname, 8, "kmem-%d", i);
+    initlock(&kmem[i].lock, kmem[i].lockname);
+  }
+
+  push_off();
+  freerange(end, (void *)PHYSTOP);
+  pop_off();
 }
+
 
 void
 freerange(void *pa_start, void *pa_end)
@@ -47,6 +88,7 @@ void
 kfree(void *pa)
 {
   struct run *r;
+  uint id;
 
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
@@ -56,11 +98,15 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
-  acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
-  release(&kmem.lock);
+  push_off();
+  id = cpuid();
+  pop_off();
+  acquire(&kmem[id].lock);
+  r->next = kmem[id].freelist;
+  kmem[id].freelist = r;
+  release(&kmem[id].lock);
 }
+
 
 // Allocate one 4096-byte page of physical memory.
 // Returns a pointer that the kernel can use.
@@ -69,14 +115,29 @@ void *
 kalloc(void)
 {
   struct run *r;
+  int id;
 
-  acquire(&kmem.lock);
-  r = kmem.freelist;
+  push_off();
+  id = cpuid();
+  pop_off();
+  acquire(&kmem[id].lock);
+  r = kmem[id].freelist;
   if(r)
-    kmem.freelist = r->next;
-  release(&kmem.lock);
+    kmem[id].freelist = r->next;
+  release(&kmem[id].lock);
+
+  // when memory isn't enough,
+  // steal memory from other cpu's linked list
+  if(!r){
+    steal(id); // 窃取内存块并插入链表头部
+    acquire(&kmem[id].lock);
+    if((r = kmem[id].freelist) != 0)
+      kmem[id].freelist = r->next;
+    release(&kmem[id].lock);
+  }
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
+
