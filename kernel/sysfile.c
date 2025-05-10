@@ -309,6 +309,39 @@ sys_open(void)
       return -1;
     }
     ilock(ip);
+
+    if(ip->type == T_SYMLINK && !(omode & O_NOFOLLOW))
+    {
+      char target[MAXPATH];
+      int depth = 0;
+      
+      while(depth < 10) {
+        if(readi(ip, 0, (uint64)target, 0, MAXPATH) != MAXPATH) {
+          iunlockput(ip);
+          end_op();
+          return -1;
+        }
+        
+        iunlockput(ip);
+        ip = namei(target);
+        if(ip == 0) {
+          end_op();
+          return -1;
+        }
+        ilock(ip);
+        
+        if(ip->type != T_SYMLINK)
+          break;
+          
+        depth++;
+        if(depth >= 10) {
+          iunlockput(ip);
+          end_op();
+          return -1; // 符号链接循环或过深
+        }
+      }
+    }
+
     if(ip->type == T_DIR && omode != O_RDONLY){
       iunlockput(ip);
       end_op();
@@ -341,6 +374,7 @@ sys_open(void)
   f->readable = !(omode & O_WRONLY);
   f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
 
+  // 如果设置了O_TRUNC标志且为普通文件，则截断文件
   if((omode & O_TRUNC) && ip->type == T_FILE){
     itrunc(ip);
   }
@@ -482,5 +516,27 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
+  return 0;
+}
+
+int sys_symlink(void){
+  char path[MAXPATH];
+  char target[MAXPATH];
+  if ((argstr(0, target, MAXPATH) < 0) || (argstr(1, path, MAXPATH) < 0)){
+    return -1;
+  }
+  begin_op();
+  struct inode *ip;
+  if ((ip = create(path, T_SYMLINK,0 ,0)) == 0){
+    end_op();
+    return -1;
+  }
+  if(writei(ip, 0, (uint64)target, 0, MAXPATH) < MAXPATH){
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+  iunlockput(ip);
+  end_op();
   return 0;
 }

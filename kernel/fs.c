@@ -377,17 +377,16 @@ iunlockput(struct inode *ip)
 static uint
 bmap(struct inode *ip, uint bn)
 {
-  
   uint addr, *a;
   struct buf *bp;
-
   if(bn < NDIRECT){
     if((addr = ip->addrs[bn]) == 0)
       ip->addrs[bn] = addr = balloc(ip->dev);
     return addr;
   }
+  // printf ("%d %d\n", bn - NDIRECT, NINDIRECT);
   bn -= NDIRECT;
-
+  // printf ("%d\n", bn);
   if(bn < NINDIRECT){
     // Load indirect block, allocating if necessary.
     if((addr = ip->addrs[NDIRECT]) == 0)
@@ -400,8 +399,35 @@ bmap(struct inode *ip, uint bn)
     }
     brelse(bp);
     return addr;
-  }
+  }     
+  bn -= NINDIRECT;
+  if (bn < NNINDIRECT){
+    // if (bn > NNINDIRECT){
+    //   panic("bmap: out of range");
+    // }
+    int idx1 = bn / NINDIRECT;
+    int idx2 = bn % NINDIRECT;
+    // printf ("%d %d %d\n", bn,idx1, idx2);
+    if ((addr = ip->addrs[NDIRECT + 1]) == 0){
+      ip->addrs[NDIRECT + 1] = addr = balloc(ip->dev);
+    }
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+    if ((addr = a[idx1]) == 0){
+      a[idx1] = addr = balloc(ip->dev);
+      log_write(bp);
+    }
+    brelse(bp);
 
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+    if ((addr = a[idx2]) == 0){
+      a[idx2] = addr = balloc(ip->dev);
+      log_write(bp);
+    }
+    brelse(bp);
+    return addr;
+  }
   panic("bmap: out of range");
 }
 
@@ -420,9 +446,28 @@ itrunc(struct inode *ip)
       ip->addrs[i] = 0;
     }
   }
-
+  if (ip->addrs[NDIRECT + 1]){
+    bp = bread(ip->dev, ip->addrs[NDIRECT + 1]);
+    a = (uint*)bp->data;
+    for (j = 0; j < NINDIRECT; j++){
+      if (a[j]){
+        bp = bread(ip->dev, a[j]);
+        a = (uint*)bp->data;
+        for (int k = 0; k < 256; k++){
+          if (a[k]){
+            bfree(ip->dev, a[k]);
+          }
+        }
+        brelse(bp);
+        bfree(ip->dev, a[j]);
+      }
+    }
+    brelse(bp);
+    bfree(ip->dev, a[j]);
+    ip->addrs[NDIRECT] = 0;
+  }
   if(ip->addrs[NDIRECT]){
-    bp = bread(ip->dev, ip->addrs[NDIRECT]);
+    bp = bread(ip->dev, ip->addrs[NDIRECT + 1]);
     a = (uint*)bp->data;
     for(j = 0; j < NINDIRECT; j++){
       if(a[j])
